@@ -9,6 +9,21 @@
 {{- $external_url := index .Values.bytebase.option "external-url" -}}
 {{- $disable_sample := index .Values.bytebase.option "disable-sample" }}
 # bytebase.option.externalPg
+{{- define "bytebase.externalPgEnabled" -}}
+{{- $explicit := .Values.bytebase.option.externalPg.enabled }}
+{{- $hasURL := .Values.bytebase.option.externalPg.url }}
+{{- $hasSecret := .Values.bytebase.option.externalPg.existingPgURLSecret }}
+{{- $hasConfig := and .Values.bytebase.option.externalPg.pgHost (ne .Values.bytebase.option.externalPg.pgHost "host") }}
+{{- if eq $explicit true }}
+  {{- true -}}
+{{- else if eq $explicit false }}
+  {{- false -}}
+{{- else if or $hasURL $hasSecret $hasConfig }}
+  {{- true -}}
+{{- else }}
+  {{- false -}}
+{{- end -}}
+{{- end }}
 {{- $externalPgURL := .Values.bytebase.option.externalPg.url -}}
 {{- $externalPgExistingPgURLSecret := .Values.bytebase.option.externalPg.existingPgURLSecret -}}
 {{- $externalPgExistingPgURLSecretKey := .Values.bytebase.option.externalPg.existingPgURLSecretKey -}}
@@ -120,32 +135,32 @@ spec:
           {{- end }}
           imagePullPolicy: Always
           env:
-          {{- if $externalPgExistingPgURLSecret }}
-          # If user specifies an existing secret, we should read the external pg connection string in that secret.
-          - name: PG_URL
-            valueFrom:
-              secretKeyRef:
-                name: {{ $externalPgExistingPgURLSecret }}
-                key: {{ $externalPgExistingPgURLSecretKey }}
-          {{- else if $externalPgURL }}
-          # If user specifies the external pg connection string directly, we should use that.
-          - name: PG_URL
-            value: {{ $externalPgURL }}
-          {{- else }}
-          # Otherwise, we should construct the external pg connection string from the specified parameters.
-          {{- if and $externalPgExistingPgPasswordSecret (not $externalPgEscapePgPassword) }}
-          # If user specifies an existing secret, we should read the external pg password in that secret.
-          - name: PG_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ $externalPgExistingPgPasswordSecret }}
-                key: {{ $externalPgExistingPgPasswordSecretKey }}
-          - name: PG_URL
-            value: postgres://{{ $externalPgUsername }}:$(PG_PASSWORD)@{{ $externalPgHost }}:{{ $externalPgPort }}/{{ $externalPgDatabase }}
-          {{- else }}
-          - name: PG_URL
-            value: postgres://{{ $externalPgUsername }}:{{ $externalPgPassword }}@{{ $externalPgHost }}:{{ $externalPgPort }}/{{ $externalPgDatabase }}
-          {{- end }}
+            {{- if include "bytebase.externalPgEnabled" . }}
+              {{- if .Values.bytebase.option.externalPg.existingPgURLSecret }}
+            - name: PG_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bytebase.option.externalPg.existingPgURLSecret }}
+                  key: {{ .Values.bytebase.option.externalPg.existingPgURLSecretKey }}
+            {{- else if .Values.bytebase.option.externalPg.url }}
+            - name: PG_URL
+              value: {{ .Values.bytebase.option.externalPg.url }}
+            {{- else }}
+              {{- if and .Values.bytebase.option.externalPg.existingPgPasswordSecret (not .Values.bytebase.option.externalPg.escapePassword) }}
+              # If using password from secret and not escaping
+              - name: PG_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.bytebase.option.externalPg.existingPgPasswordSecret }}
+                    key: {{ .Values.bytebase.option.externalPg.existingPgPasswordSecretKey }}
+              - name: PG_URL
+                value: postgres://{{ .Values.bytebase.option.externalPg.pgUsername }}:$(PG_PASSWORD)@{{ .Values.bytebase.option.externalPg.pgHost }}:{{ .Values.bytebase.option.externalPg.pgPort }}/{{ .Values.bytebase.option.externalPg.pgDatabase }}
+              {{- else if not .Values.bytebase.option.externalPg.escapePassword }}
+              # If using direct password without escaping
+              - name: PG_URL
+                value: postgres://{{ .Values.bytebase.option.externalPg.pgUsername }}:{{ .Values.bytebase.option.externalPg.pgPassword }}@{{ .Values.bytebase.option.externalPg.pgHost }}:{{ .Values.bytebase.option.externalPg.pgPort }}/{{ .Values.bytebase.option.externalPg.pgDatabase }}
+              {{- end }}
+            {{- end }}
           {{- end }}
           command:
             - /bin/sh

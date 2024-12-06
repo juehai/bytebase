@@ -11,6 +11,11 @@ bytebase:
     external-url: "https://www.bytebase.com/docs/get-started/install/external-url"
     disable-sample: false
     externalPg:
+    # -- Enable external PostgreSQL configuration
+      # If not explicitly set to true/false, will be considered enabled if any connection configuration is provided     
+      enabled: false
+      # -- PostgreSQL connection URL
+      # Will be ignored if existingPgURLSecret is specified
       url: ""
       # If users need to read the pgURL from a secret, they can specify the secret name and key here.
       # Bytebase will ignore the bytebase.option.externalPg.url if this is specified.
